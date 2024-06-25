@@ -13,7 +13,7 @@ import {
 	LinesMesh,
 	Mesh,
 	MeshBuilder,
-	Plane,
+	// Plane,
 	PositionGizmo,
 	Scene,
 	SceneLoader,
