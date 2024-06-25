@@ -4,7 +4,7 @@
 
 -   This assignment involves creating a 3D interactive web application using **[BabylonJS](https://www.babylonjs.com/)** and **[ReactJS](https://react.dev/)**
 -   The project is deployed on **[Vercel](https://vercel.com/)** for live demonstration.
--   Check the Live **[Demo](https://metadrob-assignment.vercel.app/)**. :red_circle:
+-   Check the Live **[Demo](https://optellix-assignment-babylon.vercel.app/)**. :red_circle:
 
 ## Setup
 
