@@ -5,7 +5,7 @@ import { Inspector } from '@babylonjs/inspector';
 import {
 	AbstractMesh,
 	ArcRotateCamera,
-	Axis,
+	// Axis,
 	BoundingInfo,
 	Color3,
 	Engine,
@@ -678,11 +678,17 @@ const handleUpdateBtn = (): void => {
 	}
 
 	if (femurCentrePos && hipCentrePos) {
-		var samplePlane = createPerpendicularPlane(
+		createPerpendicularPlane(
 			'mechanicalAxis',
 			femurCentrePos,
 			hipCentrePos,
 		);
+
+		// var samplePlane = createPerpendicularPlane(
+		// 	'mechanicalAxis',
+		// 	femurCentrePos,
+		// 	hipCentrePos,
+		// );
 
 		if (medialEpicondylePos && lateralEpicondylePos) {
 			// TRY 1
@@ -704,28 +710,28 @@ const handleUpdateBtn = (): void => {
  * @param {Mesh} plane - The mesh representing the plane to be used for clipping.
  * @returns {void}
  ****************************************/
-const updateClipPlane = (plane: Mesh): void => {
-	// Get the plane's normal vector (taking rotation into account)
-	const normal = new Vector3(0, 1, 0);
-	const transformedNormal = Vector3.TransformNormal(
-		normal,
-		plane.getWorldMatrix(),
-	);
+// const updateClipPlane = (plane: Mesh): void => {
+// 	// Get the plane's normal vector (taking rotation into account)
+// 	const normal = new Vector3(0, 1, 0);
+// 	const transformedNormal = Vector3.TransformNormal(
+// 		normal,
+// 		plane.getWorldMatrix(),
+// 	);
 
-	// Calculate the plane's distance from the origin
-	const distance = Vector3.Dot(transformedNormal, plane.position);
+// 	// Calculate the plane's distance from the origin
+// 	const distance = Vector3.Dot(transformedNormal, plane.position);
 
-	// Create the mathematical plane
-	const clipPlane = new Plane(
-		transformedNormal.x,
-		transformedNormal.y,
-		transformedNormal.z,
-		distance,
-	);
+// 	// Create the mathematical plane
+// 	const clipPlane = new Plane(
+// 		transformedNormal.x,
+// 		transformedNormal.y,
+// 		transformedNormal.z,
+// 		distance,
+// 	);
 
-	// Set the scene's clip plane
-	scene.clipPlane4 = clipPlane;
-};
+// 	// Set the scene's clip plane
+// 	scene.clipPlane4 = clipPlane;
+// };
 
 /****************************************
  * Creates a plane perpendicular to the line defined by two points.
