@@ -5,21 +5,31 @@ import { Inspector } from '@babylonjs/inspector';
 import {
 	AbstractMesh,
 	ArcRotateCamera,
-	// Axis,
+	Axis,
 	BoundingInfo,
 	Color3,
+	Color4,
 	Engine,
 	HemisphericLight,
+	LinesBuilder,
 	LinesMesh,
+	Matrix,
 	Mesh,
 	MeshBuilder,
+	Nullable,
+	Plane,
 	// Plane,
 	PositionGizmo,
+	Quaternion,
+	Ray,
+	RayHelper,
 	Scene,
 	SceneLoader,
+	Space,
 	StandardMaterial,
 	UtilityLayerRenderer,
 	Vector3,
+	VertexBuffer,
 } from '@babylonjs/core';
 
 var canvas: HTMLCanvasElement;
@@ -36,7 +46,10 @@ var positionGizmo: PositionGizmo;
 var mechanicalAxis: LinesMesh;
 var anatomicalAxis: LinesMesh;
 var TEAxis: LinesMesh;
+var projectedTEA: LinesMesh;
 var PCAxis: LinesMesh;
+var landmarkArray: Mesh[];
+var mechanicalAxisPlane: Mesh;
 
 //state
 // interface IState {
@@ -486,6 +499,11 @@ const createSphereAtCursor = (event: MouseEvent): void => {
 					scene,
 				);
 
+				// scene.whenReadyAsync().then(() => {
+				// 	landmarkArray.push(sphere);
+				// 	console.log(landmarkArray);
+				// });
+
 				positionGizmo.attachedMesh = sphere;
 
 				// Position sphere at the picked point
@@ -677,31 +695,98 @@ const handleUpdateBtn = (): void => {
 		PCAxis.color = Color3.Yellow();
 	}
 
+	// Create Mechanical axis plane
 	if (femurCentrePos && hipCentrePos) {
-		createPerpendicularPlane(
+		mechanicalAxisPlane = createPerpendicularPlane(
 			'mechanicalAxis',
 			femurCentrePos,
 			hipCentrePos,
 		);
+	}
 
-		// var samplePlane = createPerpendicularPlane(
-		// 	'mechanicalAxis',
-		// 	femurCentrePos,
-		// 	hipCentrePos,
-		// );
-
-		if (medialEpicondylePos && lateralEpicondylePos) {
-			// TRY 1
-			// createLineOnPlane(
-			// 	scene,
-			// 	samplePlane,
-			// 	medialEpicondylePos,
-			// 	lateralEpicondylePos,
-			// );
-			// TRY 2
-			// getPointPerpendicularToPlane(medialEpicondylePos, samplePlane);
-			// updateClipPlane(samplePlane);
+	//Create Projected TEA
+	scene.whenReadyAsync().then(() => {
+		var newPoint1: Nullable<Vector3> | undefined;
+		var newPoint2: Nullable<Vector3> | undefined;
+		//For point 1
+		if (medialEpicondylePos) {
+			var landmark = scene.getMeshByName('medialEpicondyle');
+			if (landmark) {
+				newPoint1 = createPointOnRotatedPlaneWithRaycast(
+					scene,
+					mechanicalAxisPlane,
+					landmark,
+				);
+				console.log('Point 1 calculated');
+			}
 		}
+
+		//For point 2
+		if (lateralEpicondylePos) {
+			var landmark = scene.getMeshByName('lateralEpicondyle');
+			if (landmark) {
+				newPoint2 = createPointOnRotatedPlaneWithRaycast(
+					scene,
+					mechanicalAxisPlane,
+					landmark,
+				);
+				console.log('Point 2 calculated');
+			}
+		}
+
+		//Draw Projected TEA
+		if (newPoint1 && newPoint2) {
+			if (projectedTEA) {
+				console.log('projectedTEA line found. Disposing now...');
+				projectedTEA.dispose();
+			}
+			projectedTEA = MeshBuilder.CreateLines('projectedTEA', {
+				points: [newPoint1, newPoint2],
+			});
+			projectedTEA.color = Color3.Red();
+			console.log('Drawing projectedTEA done successfully!');
+		}
+	});
+};
+
+// Function to create a point on the rotated plane along the Y-axis of an existing point using raycasting
+const createPointOnRotatedPlaneWithRaycast = (
+	scene: Scene,
+	plane: Mesh,
+	landmark: AbstractMesh,
+) => {
+	// Direction of the ray along the Y-axis
+	let rayDirection = new Vector3(0, -1, 0);
+
+	// Transform existing point to local coordinates of the plane
+	let localPoint = landmark.position.subtract(plane.position);
+	let rotationQuaternion = plane.rotationQuaternion || Quaternion.Identity();
+	const matrix = Matrix.Zero();
+	Vector3.TransformCoordinatesToRef(
+		localPoint,
+		rotationQuaternion.toRotationMatrix(matrix),
+		localPoint,
+	);
+
+	// Create the ray
+	const ray = new Ray(landmark.position, rayDirection);
+	// var ray1Helper = new RayHelper(ray);
+	// ray1Helper.show(scene, new Color3(1, 1, 0));
+
+	// Perform the raycast
+	const hits = scene.multiPickWithRay(ray);
+
+	if (hits) {
+		console.log('CHECK 1', hits);
+		for (let i = 0; i < hits.length; i++) {
+			if (hits[i].pickedMesh?.name === plane.name) {
+				var hitPoint = hits[i].pickedPoint;
+				return hitPoint;
+			}
+		}
+	} else {
+		console.log('Ray did not hit the plane: ');
+		return null;
 	}
 };
 
@@ -768,9 +853,6 @@ const createPerpendicularPlane = (
 	}
 	perpendicularVector.normalize();
 
-	// Create the plane's normal which is the first perpendicular vector
-	// const planeNormal = perpendicularVector;
-
 	// Create the plane
 	const plane = MeshBuilder.CreatePlane(
 		meshName + 'Plane',
@@ -780,6 +862,7 @@ const createPerpendicularPlane = (
 
 	// Position the plane at point1
 	plane.position = point2;
+	plane.flipFaces(true);
 	plane.lookAt(point1);
 
 	// Optionally, apply a material to the plane for visualization
@@ -791,175 +874,6 @@ const createPerpendicularPlane = (
 
 	return plane;
 };
-
-//////////////////////////////////////////////////////////////////////////////////////
-// TRY 1
-/****************************************
- * Creates a line on a plane by projecting two points onto the plane.
- * @param {Scene} scene - The Babylon.js scene.
- * @param {Mesh} plane - The plane mesh to project the points onto.
- * @param {Vector3} pointA - The first point to project onto the plane.
- * @param {Vector3} pointB - The second point to project onto the plane.
- * @returns {Mesh} The created line mesh projected onto the plane.
- ****************************************/
-// const createLineOnPlane = (
-// 	scene: Scene,
-// 	plane: Mesh,
-// 	pointA: Vector3,
-// 	pointB: Vector3,
-// ) => {
-// 	const planePoint = plane.position;
-// 	const planeNormal = plane.getDirection(Axis.Z); // Assuming plane normal is along Z axis
-
-// 	const projectedPointA = projectPointOntoPlane(
-// 		pointA,
-// 		planePoint,
-// 		planeNormal,
-// 	);
-// 	const projectedPointB = projectPointOntoPlane(
-// 		pointB,
-// 		planePoint,
-// 		planeNormal,
-// 	);
-
-// 	const line = MeshBuilder.CreateLines(
-// 		'projectedLine',
-// 		{
-// 			points: [projectedPointA, projectedPointB],
-// 		},
-// 		scene,
-// 	);
-
-// 	const lineMaterial = new StandardMaterial('lineMaterial', scene);
-// 	lineMaterial.emissiveColor = new Color3(1, 0, 0); // Red for visibility
-// 	line.material = lineMaterial;
-
-// 	return line;
-// };
-
-/****************************************
- * Projects a point onto a plane defined by a point and a normal.
- * @param {Vector3} point - The point to be projected.
- * @param {Vector3} planePoint - A point on the plane.
- * @param {Vector3} planeNormal - The normal vector of the plane.
- * @returns {Vector3} The projected point on the plane.
- ****************************************/
-// const projectPointOntoPlane = (
-// 	point: Vector3,
-// 	planePoint: Vector3,
-// 	planeNormal: Vector3,
-// ): Vector3 => {
-// 	const pointToPlaneVector = point.subtract(planePoint);
-
-// 	// Calculate the distance from the point to the plane along the plane's normal
-// 	const distance = Vector3.Dot(pointToPlaneVector, planeNormal);
-
-// 	// Calculate the projection of the point onto the plane
-// 	const projection = point.subtract(planeNormal.scale(distance));
-// 	return projection;
-// };
-
-//////////////////////////////////////////////////////////////////////////////////////
-// TRY 2
-/****************************************
- * Computes a point perpendicular to a given plane and draws a line between them.
- * @param {Vector3} existingPoint - The starting point in 3D space.
- * @param {Mesh} plane - The plane mesh to which the perpendicular point is computed.
- * @returns {Vector3} The computed point perpendicular to the plane.
- ****************************************/
-// const getPointPerpendicularToPlane = (
-// 	existingPoint: Vector3,
-// 	plane: Mesh,
-// ): Vector3 => {
-// 	// Compute the direction vector (normalized plane normal)
-// 	const worldMatrix = plane.getWorldMatrix();
-// 	const normal = Vector3.TransformNormal(
-// 		new Vector3(0, 0, 1),
-// 		worldMatrix,
-// 	).normalize();
-
-// 	// Define the length of the line segment
-// 	const lineLength = 100;
-
-// 	// Compute point B
-// 	const pointB = existingPoint.add(normal.scale(lineLength));
-
-// 	// Create the line from A to B
-// 	const lines = MeshBuilder.CreateLines(
-// 		'lineAB',
-// 		{
-// 			points: [existingPoint, pointB],
-// 		},
-// 		scene,
-// 	);
-
-// 	// Optional: Customize the appearance of the line
-// 	lines.color = new Color3(1, 0, 0); // Set the line color to red
-
-// 	return pointB;
-// };
-
-/****************************************
- * Calculates the intersection of a point with a plane defined by a point and a normal.
- * @param {Vector3} point - The point to intersect with the plane.
- * @param {Vector3} planePoint - A point on the plane.
- * @param {Vector3} planeNormal - The normal vector of the plane.
- * @returns {Vector3} The intersection point on the plane.
- ****************************************/
-// const calculateIntersectionWithPlane = (
-// 	point: Vector3,
-// 	planePoint: Vector3,
-// 	planeNormal: Vector3,
-// ): Vector3 => {
-// 	const distance = Vector3.Dot(planeNormal, planePoint.subtract(point));
-
-// 	// Calculate the intersection point by moving from the point along the plane's normal
-// 	const intersection = point.add(planeNormal.scale(distance));
-// 	return intersection;
-// };
-
-/****************************************
- * Creates a line on a plane by projecting two points onto the plane.
- * @param {Scene} scene - The Babylon.js scene.
- * @param {Mesh} plane - The plane mesh to project the points onto.
- * @param {Vector3} pointA - The first point to project onto the plane.
- * @param {Vector3} pointB - The second point to project onto the plane.
- * @returns {Mesh} The created line mesh projected onto the plane.
- ****************************************/
-// const createProjectedLineOnPlane = (
-// 	scene: Scene,
-// 	plane: Mesh,
-// 	pointA: Vector3,
-// 	pointB: Vector3,
-// ) => {
-// 	const planePoint = plane.position;
-// 	const planeNormal = plane.getDirection(Axis.Z); // Assuming plane normal is along Z axis
-
-// 	const projectedPointA = calculateIntersectionWithPlane(
-// 		pointA,
-// 		planePoint,
-// 		planeNormal,
-// 	);
-// 	const projectedPointB = calculateIntersectionWithPlane(
-// 		pointB,
-// 		planePoint,
-// 		planeNormal,
-// 	);
-
-// 	const line = MeshBuilder.CreateLines(
-// 		'projectedLine',
-// 		{
-// 			points: [projectedPointA, projectedPointB],
-// 		},
-// 		scene,
-// 	);
-
-// 	const lineMaterial = new StandardMaterial('lineMaterial', scene);
-// 	lineMaterial.emissiveColor = new Color3(1, 0, 0); // Red for visibility
-// 	line.material = lineMaterial;
-
-// 	return line;
-// };
 
 /****************************************
  * Initiates the rendering loop for continuous updates and rendering of the Babylon.js scene.
