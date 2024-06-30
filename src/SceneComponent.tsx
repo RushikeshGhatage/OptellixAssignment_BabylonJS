@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import '@babylonjs/loaders';
 import { Inspector } from '@babylonjs/inspector';
@@ -49,7 +49,9 @@ var PCAxis: LinesMesh;
 var anteriorLine: LinesMesh;
 // var landmarkArray: Mesh[];
 var mechanicalAxisPlane: Mesh;
-var varusPlaneValue: number = 0;
+var varusAxisPlane: Mesh;
+var varusPlaneRotationValue: number = 0;
+var varusPivotPoint: Vector3;
 //state
 // interface IState {
 
@@ -64,6 +66,8 @@ var varusPlaneValue: number = 0;
  * Functional React component representing a 3D scene using Babylon.js.
  ****************************************/
 export default function SceneComponent() {
+	const [, setVarusPlaneRotationValue] = useState(varusPlaneRotationValue);
+
 	const initialize = () => {
 		console.clear();
 
@@ -107,6 +111,60 @@ export default function SceneComponent() {
 	useEffect(() => {
 		initialize();
 	}, []);
+
+	/**
+	 * Handles the increment and decrement of the varus axis plane rotation.
+	 * @param number Indicates whether to increment (1) or decrement (0) the rotation.
+	 * @returns {void}
+	 */
+	const handleVarusIncDec = (number: number): void => {
+		// Set the rotation increment value
+		const rotationIncrement = 1;
+
+		if (varusAxisPlane) {
+			if (varusAxisPlane.rotationQuaternion) {
+				// Increment or decrement rotation value based on the button clicked
+				let rotationQuaternion;
+				if (number === 0) {
+					// Decrement (rotate anti-clockwise)
+					rotationQuaternion = Quaternion.RotationAxis(
+						Axis.X,
+						-(rotationIncrement / 100),
+					);
+				} else if (number === 1) {
+					// Increment (rotate clockwise)
+					rotationQuaternion = Quaternion.RotationAxis(
+						Axis.X,
+						rotationIncrement / 100,
+					);
+				}
+
+				varusPlaneRotationValue = rotationIncrement;
+
+				if (rotationQuaternion) {
+					// Apply the rotation
+					varusAxisPlane.rotationQuaternion =
+						rotationQuaternion.multiply(
+							varusAxisPlane.rotationQuaternion,
+						);
+				}
+			} else {
+				// If no rotation quaternion is used, update the z-axis rotation directly
+				if (number === 0) {
+					// Decrement (rotate anti-clockwise)
+					varusAxisPlane.rotation.x -= rotationIncrement / 100;
+					varusPlaneRotationValue -= rotationIncrement;
+				} else if (number === 1) {
+					// Increment (rotate clockwise)
+					varusAxisPlane.rotation.x += rotationIncrement / 100;
+					varusPlaneRotationValue += rotationIncrement;
+				}
+			}
+			setVarusPlaneRotationValue(
+				Math.round(varusPlaneRotationValue * 100),
+			);
+		}
+	};
 
 	return (
 		<div className='mainDiv'>
@@ -396,16 +454,7 @@ export default function SceneComponent() {
 				>
 					-
 				</button>
-				<input
-					type='number'
-					min='0'
-					max='10'
-					value={varusPlaneValue}
-					className='inputNumber'
-					onChange={(e) => {
-						// changeRotationSpeed(e, 0);
-					}}
-				/>
+				<span className='custSpan'>{varusPlaneRotationValue}</span>
 				{/* Increment Varus */}
 				<button
 					className='btn'
@@ -420,16 +469,6 @@ export default function SceneComponent() {
 		</div>
 	);
 }
-
-const handleVarusIncDec = (number: number) => {
-	if (number === 0) {
-		//Decrement
-		console.log('Varus Decrement should done here');
-	} else if (number === 1) {
-		//Increment
-		console.log('Varus Increment should done here');
-	}
-};
 
 /****************************************
  * Handles the keydown event for a specific functionality.
@@ -832,10 +871,12 @@ const handleUpdateBtn = (): void => {
 
 							//Varus Plane rotation
 							//Duplicate the plane
+							varusAxisPlane =
+								mechanicalAxisPlane.clone('varusAxisPlane');
 							//Add rotation
 							var angle = 0.1;
 							rotatePlaneAroundLinePivot(
-								mechanicalAxisPlane,
+								varusAxisPlane,
 								anteriorLine,
 								angle,
 							);
@@ -873,13 +914,12 @@ const rotatePlaneAroundLinePivot = (
 	const startPoint = new Vector3(positions[0], positions[1], positions[2]);
 	const endPoint = new Vector3(positions[3], positions[4], positions[5]);
 
-	var pivot = new TransformNode('root');
-	plane.parent = pivot;
+	varusPivotPoint = endPoint;
 
-	scene.registerAfterRender(function () {
-		angleInDegrees += 0.0001;
-		plane.rotateAround(endPoint, Axis.Z, angleInDegrees);
-	});
+	// var pivot = new TransformNode('root');
+	// plane.parent = pivot;
+
+	// plane.rotateAround(endPoint, Axis.Z, angleInDegrees);
 };
 
 /**
