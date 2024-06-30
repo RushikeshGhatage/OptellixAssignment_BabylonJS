@@ -1,2 +1,4 @@
-Errors:
-    1. Projected TEA & Anterior line will not update second time.
+Known Issues:
+
+1. Projected TEA & Anterior line will not update second time.
+2. Rotation of varus plane along with anterior line is not working properly.
