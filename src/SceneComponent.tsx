@@ -47,7 +47,7 @@ var anteriorLine: LinesMesh;
 var mechanicalAxisPlane: Mesh;
 var varusAxisPlane: Mesh;
 var varusPlaneRotationValue: number = 0;
-var varusPivotPoint: Vector3;
+// var varusPivotPoint: Vector3;
 
 /****************************************
  * Functional React component representing a 3D scene using Babylon.js.
@@ -952,9 +952,9 @@ const rotatePlaneAroundLinePivot = (
 	}
 
 	// const startPoint = new Vector3(positions[0], positions[1], positions[2]);
-	const endPoint = new Vector3(positions[3], positions[4], positions[5]);
+	// const endPoint = new Vector3(positions[3], positions[4], positions[5]);
 
-	varusPivotPoint = endPoint;
+	// varusPivotPoint = endPoint;
 
 	// var pivot = new TransformNode('root');
 	// plane.parent = pivot;
