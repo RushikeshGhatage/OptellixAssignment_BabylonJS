@@ -75,24 +75,30 @@ export default function SceneComponent() {
 		// let axis = new AxesViewer(scene, 100);
 		// console.log(axis);
 
+		// Add event listener for key is down
 		document.addEventListener('keydown', (event) => {
 			keyDown(event);
 		});
 
+		// Add event listener for key is up
 		document.addEventListener('keyup', (event) => {
 			keyUp(event);
 		});
 
-		// Add event listener to the canvas
+		// Add event listener to catch click on canvas
 		document.addEventListener('click', (event) => {
 			createSphereAtCursor(event);
 		});
 
+		// Add event listener to handle resizing of canvas
 		window.addEventListener('resize', () => {
 			engine.resize(true);
 		});
 
+		//Scene Creation
 		createScene();
+
+		//Game loop
 		renderLoop();
 	};
 
@@ -100,11 +106,13 @@ export default function SceneComponent() {
 		initialize();
 	}, []);
 
-	/**
-	 * Handles the increment and decrement of the varus axis plane rotation.
-	 * @param number Indicates whether to increment (1) or decrement (0) the rotation.
+	/****************************************
+	 * Handles the increment or decrement of rotation for the varus axis plane.
+	 * If rotationQuaternion is available, it applies quaternion rotation; otherwise,
+	 * it directly updates the z-axis rotation.
+	 * @param {number} number - 0 for decrement (anti-clockwise), 1 for increment (clockwise).
 	 * @returns {void}
-	 */
+	 ****************************************/
 	const handleVarusIncDec = (number: number): void => {
 		// Set the rotation increment value
 		const rotationIncrement = 1;
@@ -154,8 +162,15 @@ export default function SceneComponent() {
 		}
 	};
 
-	const toggleButton = () => {
+	/****************************************
+	 * Toggles the state of a button and updates the clip plane based on the new state.
+	 * @returns {void}
+	 ****************************************/
+	const toggleButton = (): void => {
+		// Toggle the state
 		setIsOn(!isOn);
+
+		// Update the clip plane based on the new state
 		updateClipPlane(!isOn, mechanicalAxisPlane);
 	};
 
@@ -640,7 +655,7 @@ const setupLight = (): void => {
 
 /****************************************
  * Loads a 3D model into the Babylon.js 3D scene.
- * @returns {void}
+ * @returns {Promise<void>} A promise that resolves when the model is loaded.
  ****************************************/
 const loadModel = async (): Promise<void> => {
 	await loadFemur();
@@ -736,13 +751,12 @@ const loadTibia = (): Promise<void> => {
 };
 
 /****************************************
- * Creates and loads primitive shapes into the Babylon.js 3D scene.
+ * Handles updating various axes and planes based on scene mesh positions.
+ * Creates and updates mechanical axis, anatomical axis, TE axis, PCA axis,
+ * mechanical axis plane, projected TE axis, and anterior line.
  * @returns {void}
  ****************************************/
 const handleUpdateBtn = (): void => {
-	// positionGizmo.attachedMesh = null;
-	// positionGizmo.dispose();
-
 	// Mechanical Axis
 	var hipCentrePos = scene.getMeshByName('hipCentre')?.position;
 	var femurCentrePos = scene.getMeshByName('femCentre')?.position;
@@ -897,7 +911,6 @@ const handleUpdateBtn = (): void => {
 							anteriorLine.color = Color3.Blue();
 
 							//Varus Plane rotation
-							//Duplicate the plane
 							varusAxisPlane =
 								mechanicalAxisPlane.clone('varusAxisPlane');
 							//Add rotation
@@ -917,18 +930,18 @@ const handleUpdateBtn = (): void => {
 	});
 };
 
-/**
- * Rotates a plane mesh around a line mesh pivot.
- * @param plane The mesh representing the plane to rotate.
- * @param line The lines mesh providing the pivot direction.
- * @param angleInDegrees The angle in degrees by which to rotate the plane.
- * https://playground.babylonjs.com/#1JLGFP#927
+/****************************************
+ * Rotates a plane around a specified line pivot point by a given angle.
+ * Successfull implementation on Playground : https://playground.babylonjs.com/#1JLGFP#927
+ * @param {Mesh} plane - The plane mesh to rotate.
+ * @param {LinesMesh} line - The line mesh around which the plane will rotate.
+ * @param {number} angleInDegrees - The angle in degrees by which to rotate the plane.
  * @returns {void}
- */
+ ****************************************/
 const rotatePlaneAroundLinePivot = (
-	plane: Mesh,
+	_plane: Mesh,
 	line: LinesMesh,
-	angleInDegrees: number,
+	_angleInDegrees: number,
 ): void => {
 	const positions = line.getVerticesData(VertexBuffer.PositionKind);
 	if (!positions || positions.length < 6) {
@@ -938,7 +951,7 @@ const rotatePlaneAroundLinePivot = (
 		return;
 	}
 
-	const startPoint = new Vector3(positions[0], positions[1], positions[2]);
+	// const startPoint = new Vector3(positions[0], positions[1], positions[2]);
 	const endPoint = new Vector3(positions[3], positions[4], positions[5]);
 
 	varusPivotPoint = endPoint;
@@ -949,13 +962,14 @@ const rotatePlaneAroundLinePivot = (
 	// plane.rotateAround(endPoint, Axis.Z, angleInDegrees);
 };
 
-/**
- * Creates a point on a rotated plane using raycasting.
- * @param scene The BabylonJS scene object.
- * @param plane The mesh representing the plane.
- * @param landmark The mesh representing the landmark point.
- * @returns A Promise that resolves with a Vector3 representing the hit point on the plane.
- */
+/****************************************
+ * Creates a point on a rotated plane based on a landmark's position.
+ * Uses raycasting to determine the intersection point with the plane.
+ * @param {Scene} scene - The scene where the plane and landmark exist.
+ * @param {Mesh} plane - The plane mesh on which to find the intersection.
+ * @param {AbstractMesh} landmark - The landmark mesh to create the point relative to.
+ * @returns {Promise<Vector3>} A promise resolving to the intersection point on the plane.
+ ****************************************/
 const createPointOnRotatedPlane = (
 	scene: Scene,
 	plane: Mesh,
@@ -1011,19 +1025,20 @@ const createPointOnRotatedPlane = (
 	});
 };
 
-/**
- * Creates a new point such that the line from the existing point to the new point is perpendicular to the existing line.
- * @param existingPoint The existing point (Vector3).
- * @param linePoint1 The first point defining the existing line (Vector3).
- * @param linePoint2 The second point defining the existing line (Vector3).
- * @returns The new point (Vector3).
- */
-function createPerpendicularPointWithOffset(
+/****************************************
+ * Creates a new point perpendicular to an existing point on a line, with a specified offset.
+ * @param {Vector3} existingPoint - The existing point from which to calculate the perpendicular point.
+ * @param {Vector3} linePoint1 - One point of the line.
+ * @param {Vector3} linePoint2 - Another point of the line.
+ * @param {number} offset - The offset distance from the existing point to the new perpendicular point.
+ * @returns {Vector3} The new point perpendicular to the line with the specified offset.
+ ****************************************/
+const createPerpendicularPointWithOffset = (
 	existingPoint: Vector3,
 	linePoint1: Vector3,
 	linePoint2: Vector3,
 	offset: number,
-): Vector3 {
+): Vector3 => {
 	// Calculate the direction vector of the existing line
 	const lineDir = linePoint2.subtract(linePoint1).normalize();
 
@@ -1044,7 +1059,7 @@ function createPerpendicularPointWithOffset(
 	const newPoint = existingPoint.add(offsetVector);
 
 	return newPoint;
-}
+};
 
 /****************************************
  * Updates the scene's clipping plane based on the given mesh plane.
