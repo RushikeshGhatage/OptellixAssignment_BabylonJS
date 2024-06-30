@@ -14,17 +14,14 @@ import {
 	Matrix,
 	Mesh,
 	MeshBuilder,
-	Nullable,
+	Plane,
 	PositionGizmo,
 	Quaternion,
 	Ray,
 	RayHelper,
 	Scene,
 	SceneLoader,
-	Space,
 	StandardMaterial,
-	Tools,
-	TransformNode,
 	UtilityLayerRenderer,
 	Vector3,
 	VertexBuffer,
@@ -47,26 +44,17 @@ var TEAxis: LinesMesh;
 var projectedTEA: LinesMesh;
 var PCAxis: LinesMesh;
 var anteriorLine: LinesMesh;
-// var landmarkArray: Mesh[];
 var mechanicalAxisPlane: Mesh;
 var varusAxisPlane: Mesh;
 var varusPlaneRotationValue: number = 0;
 var varusPivotPoint: Vector3;
-//state
-// interface IState {
-
-// }
-
-// props
-// interface IProps {
-
-// }
 
 /****************************************
  * Functional React component representing a 3D scene using Babylon.js.
  ****************************************/
 export default function SceneComponent() {
 	const [, setVarusPlaneRotationValue] = useState(varusPlaneRotationValue);
+	const [isOn, setIsOn] = useState(false);
 
 	const initialize = () => {
 		console.clear();
@@ -164,6 +152,11 @@ export default function SceneComponent() {
 				Math.round(varusPlaneRotationValue * 100),
 			);
 		}
+	};
+
+	const toggleButton = () => {
+		setIsOn(!isOn);
+		updateClipPlane(!isOn, mechanicalAxisPlane);
 	};
 
 	return (
@@ -465,6 +458,16 @@ export default function SceneComponent() {
 				>
 					+
 				</button>
+				<div className='toggleDiv'>
+					<h1 className='labelResection'>Resection</h1>
+					<button
+						className='toggleBtn'
+						onClick={toggleButton}
+						style={{ backgroundColor: isOn ? 'green' : 'red' }}
+					>
+						{isOn ? 'ON' : 'OFF'}
+					</button>
+				</div>
 			</div>
 		</div>
 	);
@@ -531,7 +534,7 @@ const createScene = (): void => {
 
 		if (camera) {
 			camera.target = combinedCenter;
-			camera.alpha = -Math.PI / 2;
+			camera.alpha = Math.PI / 2;
 			camera.beta = Math.PI / 2;
 		}
 	});
@@ -583,11 +586,6 @@ const createSphereAtCursor = (event: MouseEvent): void => {
 					scene,
 				);
 
-				// scene.whenReadyAsync().then(() => {
-				// 	landmarkArray.push(sphere);
-				// 	console.log(landmarkArray);
-				// });
-
 				positionGizmo.attachedMesh = sphere;
 
 				// Position sphere at the picked point
@@ -612,12 +610,14 @@ const createSphereAtCursor = (event: MouseEvent): void => {
 const setupCamera = (): void => {
 	camera = new ArcRotateCamera(
 		'Camera',
-		-Math.PI / 2,
+		Math.PI / 2,
 		Math.PI / 2,
 		950,
 		Vector3.Zero(),
 		scene,
 	);
+
+	camera.wheelPrecision = 0.5;
 
 	console.log('Camera created successfully!');
 
@@ -662,6 +662,19 @@ const loadFemur = (): Promise<void> => {
 			(meshes, _particleSystems, _skeleton, _animationGroups) => {
 				femurModel = meshes[0];
 				femurBoundingInfo = femurModel.getBoundingInfo();
+				// Ensure there is a material to modify
+				if (!femurModel.material) {
+					// Create a new standard material with original color and no backface culling
+					const material = new StandardMaterial(
+						'customMaterial',
+						scene,
+					);
+					material.backFaceCulling = false;
+					femurModel.material = material;
+				} else {
+					// If material exists, ensure backface culling is disabled
+					femurModel.material.backFaceCulling = false;
+				}
 				console.log('Right Femur model loaded successfully!');
 				resolve();
 			},
@@ -692,6 +705,20 @@ const loadTibia = (): Promise<void> => {
 			(meshes, _particleSystems, _skeleton, _animationGroups) => {
 				tibiaModel = meshes[0];
 				tibiaBoundingInfo = tibiaModel.getBoundingInfo();
+				// Ensure there is a material to modify
+				if (!tibiaModel.material) {
+					// Create a new standard material with original color and no backface culling
+					const material = new StandardMaterial(
+						'customMaterial',
+						scene,
+					);
+					material.backFaceCulling = false;
+					tibiaModel.material = material;
+				} else {
+					// If material exists, ensure backface culling is disabled
+					tibiaModel.material.backFaceCulling = false;
+				}
+
 				console.log('Right Tibia model loaded successfully!');
 				resolve();
 			},
@@ -1024,28 +1051,42 @@ function createPerpendicularPointWithOffset(
  * @param {Mesh} plane - The mesh representing the plane to be used for clipping.
  * @returns {void}
  ****************************************/
-// const updateClipPlane = (plane: Mesh): void => {
-// 	// Get the plane's normal vector (taking rotation into account)
-// 	const normal = new Vector3(0, 1, 0);
-// 	const transformedNormal = Vector3.TransformNormal(
-// 		normal,
-// 		plane.getWorldMatrix(),
-// 	);
+const updateClipPlane = (isOn: boolean, plane: Mesh): void => {
+	if (isOn) {
+		// Get the transformation matrix of the plane
+		var transformMatrix = plane.getWorldMatrix();
 
-// 	// Calculate the plane's distance from the origin
-// 	const distance = Vector3.Dot(transformedNormal, plane.position);
+		// Extract the normal vector (third column of the rotation matrix)
+		var normal = new Vector3(
+			transformMatrix.m[8],
+			transformMatrix.m[9],
+			transformMatrix.m[10],
+		).normalize();
 
-// 	// Create the mathematical plane
-// 	const clipPlane = new Plane(
-// 		transformedNormal.x,
-// 		transformedNormal.y,
-// 		transformedNormal.z,
-// 		distance,
-// 	);
+		var nomalizedNormals: [number, number, number] = [
+			normal._x,
+			normal._y,
+			normal._z,
+		];
 
-// 	// Set the scene's clip plane
-// 	scene.clipPlane4 = clipPlane;
-// };
+		//Distance from Origin
+		var distance = plane.position.length();
+
+		//Clipping plane to make mesh invisible
+		var clipPlane = new Plane(
+			nomalizedNormals[0],
+			-nomalizedNormals[1],
+			nomalizedNormals[2],
+			distance,
+		);
+
+		// Attach to scene
+		scene.clipPlane = clipPlane;
+	} else {
+		// Dettach to scene
+		scene.clipPlane = null;
+	}
+};
 
 /****************************************
  * Creates a plane perpendicular to the line defined by two points.

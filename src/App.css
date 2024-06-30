@@ -113,3 +113,21 @@ label {
 	padding-bottom: 2px;
 	text-align: center;
 }
+
+.toggleDiv {
+	margin-top: 20px;
+}
+
+.labelResection {
+	font-size: 2em;
+	margin-left: 10px;
+	margin: 0% 0% 10% 15%;
+	line-height: 1.1;
+}
+
+.toggleBtn {
+	height: 35px;
+	width: 70px;
+	border-radius: 20px;
+	margin-left: 50px;
+}
