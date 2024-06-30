@@ -8,17 +8,13 @@ import {
 	Axis,
 	BoundingInfo,
 	Color3,
-	Color4,
 	Engine,
 	HemisphericLight,
-	LinesBuilder,
 	LinesMesh,
 	Matrix,
 	Mesh,
 	MeshBuilder,
 	Nullable,
-	Plane,
-	// Plane,
 	PositionGizmo,
 	Quaternion,
 	Ray,
@@ -27,6 +23,8 @@ import {
 	SceneLoader,
 	Space,
 	StandardMaterial,
+	Tools,
+	TransformNode,
 	UtilityLayerRenderer,
 	Vector3,
 	VertexBuffer,
@@ -48,9 +46,10 @@ var anatomicalAxis: LinesMesh;
 var TEAxis: LinesMesh;
 var projectedTEA: LinesMesh;
 var PCAxis: LinesMesh;
-var landmarkArray: Mesh[];
+var anteriorLine: LinesMesh;
+// var landmarkArray: Mesh[];
 var mechanicalAxisPlane: Mesh;
-
+var varusPlaneValue: number = 0;
 //state
 // interface IState {
 
@@ -112,35 +111,10 @@ export default function SceneComponent() {
 	return (
 		<div className='mainDiv'>
 			<canvas id='canvas' />
-			{/* Menu */}
+			{/* Left Div */}
 			<div className='leftDiv'>
 				{/* Header */}
 				<h1 id='mainlabel'>Knee Preop Planning</h1>
-
-				{/* Femur Centre */}
-				<div className='radioOpt'>
-					<input
-						type='radio'
-						id='femCentre_id'
-						name='fav_language'
-						className='femCentre'
-						value='fem'
-						style={{
-							height: '14px',
-							width: '14px',
-							cursor: 'pointer',
-						}}
-						onClick={() => {
-							currentActiveRadioButton = 'femCentre';
-						}}
-					/>
-
-					{/* Label */}
-					<label>
-						<b>Femur Centre</b>
-					</label>
-					<br></br>
-				</div>
 
 				{/* Hip Centre */}
 				<div className='radioOpt'>
@@ -163,6 +137,31 @@ export default function SceneComponent() {
 					{/* Label */}
 					<label>
 						<b>Hip Centre</b>
+					</label>
+					<br></br>
+				</div>
+
+				{/* Femur Centre */}
+				<div className='radioOpt'>
+					<input
+						type='radio'
+						id='femCentre_id'
+						name='fav_language'
+						className='femCentre'
+						value='fem'
+						style={{
+							height: '14px',
+							width: '14px',
+							cursor: 'pointer',
+						}}
+						onClick={() => {
+							currentActiveRadioButton = 'femCentre';
+						}}
+					/>
+
+					{/* Label */}
+					<label>
+						<b>Femur Centre</b>
 					</label>
 					<br></br>
 				</div>
@@ -382,9 +381,55 @@ export default function SceneComponent() {
 					</button>
 				</div>
 			</div>
+
+			{/* Right Div */}
+			<div className='rightDiv'>
+				{/* Header */}
+				<h1 id='customLabel'>Varus / Valgus</h1>
+				{/* Decrement Varus */}
+				<button
+					className='btn'
+					style={{ cursor: 'pointer' }}
+					onClick={() => {
+						handleVarusIncDec(0);
+					}}
+				>
+					-
+				</button>
+				<input
+					type='number'
+					min='0'
+					max='10'
+					value={varusPlaneValue}
+					className='inputNumber'
+					onChange={(e) => {
+						// changeRotationSpeed(e, 0);
+					}}
+				/>
+				{/* Increment Varus */}
+				<button
+					className='btn'
+					style={{ cursor: 'pointer' }}
+					onClick={() => {
+						handleVarusIncDec(1);
+					}}
+				>
+					+
+				</button>
+			</div>
 		</div>
 	);
 }
+
+const handleVarusIncDec = (number: number) => {
+	if (number === 0) {
+		//Decrement
+		console.log('Varus Decrement should done here');
+	} else if (number === 1) {
+		//Increment
+		console.log('Varus Increment should done here');
+	}
+};
 
 /****************************************
  * Handles the keydown event for a specific functionality.
@@ -495,7 +540,7 @@ const createSphereAtCursor = (event: MouseEvent): void => {
 				// Create sphere
 				const sphere = MeshBuilder.CreateSphere(
 					currentActiveRadioButton,
-					{ diameter: 15 },
+					{ diameter: 10 },
 					scene,
 				);
 
@@ -629,19 +674,20 @@ const loadTibia = (): Promise<void> => {
  * @returns {void}
  ****************************************/
 const handleUpdateBtn = (): void => {
-	positionGizmo.attachedMesh = null;
+	// positionGizmo.attachedMesh = null;
+	// positionGizmo.dispose();
 
 	// Mechanical Axis
-	var femurCentrePos = scene.getMeshByName('femCentre')?.position;
 	var hipCentrePos = scene.getMeshByName('hipCentre')?.position;
+	var femurCentrePos = scene.getMeshByName('femCentre')?.position;
 
-	if (femurCentrePos && hipCentrePos) {
+	if (hipCentrePos && femurCentrePos) {
 		if (mechanicalAxis) {
 			console.log('mechanicalAxis line found. Disposing now...');
 			mechanicalAxis.dispose();
 		}
 		mechanicalAxis = MeshBuilder.CreateLines('mechanicalAxis', {
-			points: [femurCentrePos, hipCentrePos],
+			points: [hipCentrePos, femurCentrePos],
 		});
 		mechanicalAxis.color = Color3.Red();
 	}
@@ -696,99 +742,242 @@ const handleUpdateBtn = (): void => {
 	}
 
 	// Create Mechanical axis plane
-	if (femurCentrePos && hipCentrePos) {
+	if (hipCentrePos && femurCentrePos) {
+		if (mechanicalAxisPlane) {
+			mechanicalAxisPlane.dispose();
+		}
 		mechanicalAxisPlane = createPerpendicularPlane(
 			'mechanicalAxis',
-			femurCentrePos,
 			hipCentrePos,
+			femurCentrePos,
 		);
 	}
 
-	//Create Projected TEA
+	// Create Projected TEA
 	scene.whenReadyAsync().then(() => {
-		var newPoint1: Nullable<Vector3> | undefined;
-		var newPoint2: Nullable<Vector3> | undefined;
-		//For point 1
+		let medialEpicondylePromise = Promise.resolve(new Vector3(0, 0, 0));
+		let lateralEpicondylePromise = Promise.resolve(new Vector3(0, 0, 0));
+
+		// For point 1
 		if (medialEpicondylePos) {
-			var landmark = scene.getMeshByName('medialEpicondyle');
+			const landmark = scene.getMeshByName('medialEpicondyle');
 			if (landmark) {
-				newPoint1 = createPointOnRotatedPlaneWithRaycast(
+				medialEpicondylePromise = createPointOnRotatedPlane(
 					scene,
 					mechanicalAxisPlane,
 					landmark,
 				);
-				console.log('Point 1 calculated');
 			}
 		}
 
-		//For point 2
+		// For point 2
 		if (lateralEpicondylePos) {
-			var landmark = scene.getMeshByName('lateralEpicondyle');
+			const landmark = scene.getMeshByName('lateralEpicondyle');
 			if (landmark) {
-				newPoint2 = createPointOnRotatedPlaneWithRaycast(
+				lateralEpicondylePromise = createPointOnRotatedPlane(
 					scene,
 					mechanicalAxisPlane,
 					landmark,
 				);
-				console.log('Point 2 calculated');
 			}
 		}
 
-		//Draw Projected TEA
-		if (newPoint1 && newPoint2) {
-			if (projectedTEA) {
-				console.log('projectedTEA line found. Disposing now...');
-				projectedTEA.dispose();
-			}
-			projectedTEA = MeshBuilder.CreateLines('projectedTEA', {
-				points: [newPoint1, newPoint2],
+		Promise.all([medialEpicondylePromise, lateralEpicondylePromise])
+			.then(([newPoint1, newPoint2]) => {
+				console.log('Point 1 calculated', newPoint1);
+				console.log('Point 2 calculated', newPoint2);
+
+				if (newPoint1 && newPoint2) {
+					// Draw Projected TEA
+					if (projectedTEA) {
+						console.log(
+							'projectedTEA line found. Disposing now...',
+						);
+						projectedTEA.dispose();
+					}
+					projectedTEA = MeshBuilder.CreateLines('projectedTEA', {
+						points: [newPoint1, newPoint2],
+					});
+					projectedTEA.color = Color3.Red();
+					console.log('Drawing projectedTEA done successfully!');
+
+					// Draw Anterior Line
+					if (femurCentrePos) {
+						console.log('RVG 1');
+
+						const anteriorPoint =
+							createPerpendicularPointWithOffset(
+								femurCentrePos,
+								newPoint1,
+								newPoint2,
+								20,
+							);
+						if (anteriorPoint) {
+							console.log('RVG 2');
+
+							if (anteriorLine) {
+								console.log('RVG 3');
+								console.log(
+									'anteriorLine line found. Disposing now...',
+								);
+								anteriorLine.dispose();
+							}
+							anteriorLine = MeshBuilder.CreateLines(
+								'anteriorLine',
+								{
+									points: [femurCentrePos, anteriorPoint],
+								},
+							);
+							anteriorLine.color = Color3.Blue();
+
+							//Varus Plane rotation
+							//Duplicate the plane
+							//Add rotation
+							var angle = 0.1;
+							rotatePlaneAroundLinePivot(
+								mechanicalAxisPlane,
+								anteriorLine,
+								angle,
+							);
+						}
+					}
+				}
+			})
+			.catch((error) => {
+				console.error('Error calculating points:', error);
 			});
-			projectedTEA.color = Color3.Red();
-			console.log('Drawing projectedTEA done successfully!');
+	});
+};
+
+/**
+ * Rotates a plane mesh around a line mesh pivot.
+ * @param plane The mesh representing the plane to rotate.
+ * @param line The lines mesh providing the pivot direction.
+ * @param angleInDegrees The angle in degrees by which to rotate the plane.
+ * https://playground.babylonjs.com/#1JLGFP#927
+ * @returns {void}
+ */
+const rotatePlaneAroundLinePivot = (
+	plane: Mesh,
+	line: LinesMesh,
+	angleInDegrees: number,
+): void => {
+	const positions = line.getVerticesData(VertexBuffer.PositionKind);
+	if (!positions || positions.length < 6) {
+		console.error(
+			'Line must have at least two points to determine direction.',
+		);
+		return;
+	}
+
+	const startPoint = new Vector3(positions[0], positions[1], positions[2]);
+	const endPoint = new Vector3(positions[3], positions[4], positions[5]);
+
+	var pivot = new TransformNode('root');
+	plane.parent = pivot;
+
+	scene.registerAfterRender(function () {
+		angleInDegrees += 0.0001;
+		plane.rotateAround(endPoint, Axis.Z, angleInDegrees);
+	});
+};
+
+/**
+ * Creates a point on a rotated plane using raycasting.
+ * @param scene The BabylonJS scene object.
+ * @param plane The mesh representing the plane.
+ * @param landmark The mesh representing the landmark point.
+ * @returns A Promise that resolves with a Vector3 representing the hit point on the plane.
+ */
+const createPointOnRotatedPlane = (
+	scene: Scene,
+	plane: Mesh,
+	landmark: AbstractMesh,
+): Promise<Vector3> => {
+	return new Promise((resolve, reject) => {
+		try {
+			// Direction of the ray along the Y-axis
+			const rayDirection = new Vector3(0, -1, 0);
+
+			// Transform existing point to local coordinates of the plane
+			let localPoint = landmark.position.subtract(plane.position);
+			const rotationQuaternion =
+				plane.rotationQuaternion || Quaternion.Identity();
+			const matrix = Matrix.Zero();
+			Vector3.TransformCoordinatesToRef(
+				localPoint,
+				rotationQuaternion.toRotationMatrix(matrix),
+				localPoint,
+			);
+
+			// Create the ray
+			const ray = new Ray(landmark.position, rayDirection);
+
+			// Create the ray helper for visualization
+			const rayHelper = new RayHelper(ray);
+			rayHelper.show(scene, new Color3(1, 1, 0));
+
+			// Perform the raycast
+			const hits = scene.multiPickWithRay(ray);
+
+			if (hits) {
+				for (let i = 0; i < hits.length; i++) {
+					if (hits[i].pickedMesh?.name === plane.name) {
+						console.log('RVG : hit to plane');
+
+						const hitPoint = hits[i].pickedPoint;
+						if (hitPoint) {
+							rayHelper.dispose(); // Dispose of the ray helper
+							resolve(hitPoint); // Resolve with the hit point
+							return;
+						}
+					}
+				}
+			}
+
+			console.log('Ray did not hit the plane: ');
+			rayHelper.dispose(); // Dispose of the ray helper even if no hit
+			resolve(new Vector3(0, 0, 0)); // Resolve with a default Vector3
+		} catch (error) {
+			reject(error); // Reject the promise in case of an error
 		}
 	});
 };
 
-// Function to create a point on the rotated plane along the Y-axis of an existing point using raycasting
-const createPointOnRotatedPlaneWithRaycast = (
-	scene: Scene,
-	plane: Mesh,
-	landmark: AbstractMesh,
-) => {
-	// Direction of the ray along the Y-axis
-	let rayDirection = new Vector3(0, -1, 0);
+/**
+ * Creates a new point such that the line from the existing point to the new point is perpendicular to the existing line.
+ * @param existingPoint The existing point (Vector3).
+ * @param linePoint1 The first point defining the existing line (Vector3).
+ * @param linePoint2 The second point defining the existing line (Vector3).
+ * @returns The new point (Vector3).
+ */
+function createPerpendicularPointWithOffset(
+	existingPoint: Vector3,
+	linePoint1: Vector3,
+	linePoint2: Vector3,
+	offset: number,
+): Vector3 {
+	// Calculate the direction vector of the existing line
+	const lineDir = linePoint2.subtract(linePoint1).normalize();
 
-	// Transform existing point to local coordinates of the plane
-	let localPoint = landmark.position.subtract(plane.position);
-	let rotationQuaternion = plane.rotationQuaternion || Quaternion.Identity();
-	const matrix = Matrix.Zero();
-	Vector3.TransformCoordinatesToRef(
-		localPoint,
-		rotationQuaternion.toRotationMatrix(matrix),
-		localPoint,
-	);
+	// Calculate a vector from the existing point to the first point of the line
+	const toLinePoint = linePoint1.subtract(existingPoint);
 
-	// Create the ray
-	const ray = new Ray(landmark.position, rayDirection);
-	// var ray1Helper = new RayHelper(ray);
-	// ray1Helper.show(scene, new Color3(1, 1, 0));
+	// Project the toLinePoint vector onto the line direction vector
+	const projectionLength = Vector3.Dot(toLinePoint, lineDir);
+	const projection = lineDir.scale(projectionLength);
 
-	// Perform the raycast
-	const hits = scene.multiPickWithRay(ray);
+	// Calculate the perpendicular vector by subtracting the projection from the toLinePoint vector
+	const perpendicular = toLinePoint.subtract(projection).normalize();
 
-	if (hits) {
-		console.log('CHECK 1', hits);
-		for (let i = 0; i < hits.length; i++) {
-			if (hits[i].pickedMesh?.name === plane.name) {
-				var hitPoint = hits[i].pickedPoint;
-				return hitPoint;
-			}
-		}
-	} else {
-		console.log('Ray did not hit the plane: ');
-		return null;
-	}
-};
+	// Scale the perpendicular vector to the desired offset length
+	const offsetVector = perpendicular.scale(offset);
+
+	// The new point is the existing point plus the offset vector
+	const newPoint = existingPoint.add(offsetVector);
+
+	return newPoint;
+}
 
 /****************************************
  * Updates the scene's clipping plane based on the given mesh plane.
